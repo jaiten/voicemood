@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "VoiceMood",
+    "slug": "voicemood",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.example.voicemood"
+    },
+    "android": {
+      "package": "com.example.voicemood"
+    }
+  }
+}
+
