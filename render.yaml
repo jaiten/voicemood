@@ -8,7 +8,7 @@ services:
     dockerContext: ./backend
     envVars:
       - key: WHISPER_MODEL_SIZE
-        value: tiny.en
+        value: base.en
       - key: WHISPER_DEVICE
         value: cpu
       - key: WHISPER_COMPUTE_TYPE
@@ -17,4 +17,5 @@ services:
         value: en
       - key: WHISPER_BEAM_SIZE
         value: "1"
-
+      - key: ACOUSTIC_SAMPLE_RATE
+        value: "16000"

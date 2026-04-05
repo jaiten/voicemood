@@ -34,7 +34,7 @@ class NoteAnalysisResult(BaseModel):
     overall_happiness_score: int | None = Field(default=None, ge=0, le=100)
     label: MoodLabel | None = None
     tone_label: ToneLabel | None = None
-    summary: str | None = None
+    summary: str | None = Field(default=None, description="Short one-sentence transcript summary.")
     audio_features: AudioFeatures | None = None
     error: str | None = None
 
@@ -46,6 +46,11 @@ class AnalyzeResponse(BaseModel):
     successful_count: int = Field(ge=0)
     failed_count: int = Field(ge=0)
     results: list[NoteAnalysisResult]
+
+
+class AnalyzeTextRequest(BaseModel):
+    text: str = Field(min_length=1)
+    title: str | None = None
 
 
 class HealthResponse(BaseModel):

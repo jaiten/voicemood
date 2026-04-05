@@ -32,6 +32,7 @@ class Settings:
     whisper_beam_size: int = int(os.getenv("WHISPER_BEAM_SIZE", "1"))
     whisper_vad_filter: bool = _parse_bool(os.getenv("WHISPER_VAD_FILTER"), True)
     acoustic_sample_rate: int = int(os.getenv("ACOUSTIC_SAMPLE_RATE", "16000"))
+    openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "").strip()
     model_cache_dir: str = os.getenv("MODEL_CACHE_DIR", str(BASE_DIR / ".cache" / "models"))
 
 

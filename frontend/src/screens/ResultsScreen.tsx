@@ -1,25 +1,30 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { colors, getMoodTheme, normalizeMoodLabel } from "../theme";
+import { AnimatedCard } from "../components/AnimatedCard";
+import { colors, getMoodTheme, getToneTheme, normalizeMoodLabel, normalizeToneLabel } from "../theme";
 import { AnalysisResponse, NoteResult } from "../types";
+import { formatFilename } from "../utils/display";
 
 type Props = {
   analysis: AnalysisResponse;
   onBack: () => void;
-  onSelectNote: (note: NoteResult) => void;
+  onSelectNote: (index: number) => void;
 };
 
 export function ResultsScreen({ analysis, onBack, onSelectNote }: Props) {
   const overallLabel = normalizeMoodLabel(analysis.overall_label);
   const overallLabelTheme = getMoodTheme(overallLabel);
+  const successfulResults = analysis.results.filter((note) => note.status === "success");
+  const averageTranscriptScore = averageMetric(successfulResults, "transcript_sentiment_score");
+  const averageToneScore = averageMetric(successfulResults, "acoustic_tone_score");
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Pressable onPress={onBack} style={styles.backButton}>
-        <Text style={styles.backButtonText}>Back</Text>
+        <Text style={styles.backButtonText}>Back to capture</Text>
       </Pressable>
 
-      <View style={styles.summaryCard}>
+      <AnimatedCard delay={40} style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>Overall mood snapshot</Text>
         <Text style={styles.bigScore}>{analysis.average_happiness}</Text>
         <View style={[styles.labelPill, { backgroundColor: overallLabelTheme.background }]}>
@@ -32,59 +37,118 @@ export function ResultsScreen({ analysis, onBack, onSelectNote }: Props) {
             <Text style={styles.statLabel}>Total notes</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{analysis.successful_count}</Text>
-            <Text style={styles.statLabel}>Analyzed</Text>
+            <Text style={styles.statValue}>{averageTranscriptScore ?? "--"}</Text>
+            <Text style={styles.statLabel}>Text avg</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{analysis.failed_count}</Text>
-            <Text style={styles.statLabel}>Failed</Text>
+            <Text style={styles.statValue}>{averageToneScore ?? "--"}</Text>
+            <Text style={styles.statLabel}>Tone avg</Text>
           </View>
         </View>
 
         <Text style={styles.disclaimer}>
-          This score is a light emotional summary for hobby use, not a medical or clinical assessment.
+          Local transcript sentiment and vocal tone are blended into the overall happiness score. This is not medical or
+          clinical advice.
         </Text>
-      </View>
+      </AnimatedCard>
 
-      <Text style={styles.listTitle}>Voice notes</Text>
+      <Text style={styles.listTitle}>Latest analysis</Text>
 
       {analysis.results.map((note, index) => {
         const isError = note.status === "error";
-        const label = normalizeMoodLabel(note.label);
-        const labelTheme = getMoodTheme(label);
+        const overallLabelForNote = normalizeMoodLabel(note.label);
+        const overallTheme = getMoodTheme(overallLabelForNote);
+        const transcriptLabel = normalizeMoodLabel(note.transcript_label);
+        const transcriptTheme = getMoodTheme(transcriptLabel);
+        const toneLabel = normalizeToneLabel(note.tone_label);
+        const toneTheme = getToneTheme(toneLabel);
+        const quickMetrics = buildQuickMetrics(note);
 
         return (
-          <Pressable
-            key={`${note.filename}-${index}`}
-            onPress={() => onSelectNote(note)}
-            disabled={isError}
-            style={[styles.noteCard, isError && styles.noteCardError]}
-          >
-            <View style={styles.noteHeader}>
-              <Text style={styles.filename}>{note.filename}</Text>
-              {!isError && (
-                <View style={[styles.notePill, { backgroundColor: labelTheme.background }]}>
-                  <Text style={[styles.notePillText, { color: labelTheme.text }]}>
-                    {note.happiness_score} - {label}
-                  </Text>
+          <AnimatedCard key={`${note.filename}-${index}`} delay={80 + index * 30} style={[styles.noteCard, isError ? styles.noteCardError : null]}>
+            <Pressable onPress={() => onSelectNote(index)} disabled={isError}>
+              <View style={styles.noteHeader}>
+                <Text style={styles.filename}>{formatFilename(note.filename)}</Text>
+                {!isError ? (
+                  <View style={[styles.notePill, { backgroundColor: overallTheme.background }]}>
+                    <Text style={[styles.notePillText, { color: overallTheme.text }]}>
+                      {note.overall_happiness_score} {overallLabelForNote}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {!isError ? (
+                <View style={styles.metaRow}>
+                  <View style={[styles.metaPill, { backgroundColor: transcriptTheme.background }]}>
+                    <Text style={[styles.metaPillText, { color: transcriptTheme.text }]}>Text {transcriptLabel}</Text>
+                  </View>
+
+                  {toneLabel ? (
+                    <View style={[styles.metaPill, { backgroundColor: toneTheme.background }]}>
+                      <Text style={[styles.metaPillText, { color: toneTheme.text }]}>Tone {toneLabel}</Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.metaPill, styles.metaPillMuted]}>
+                      <Text style={[styles.metaPillText, { color: colors.textMuted }]}>Tone unavailable</Text>
+                    </View>
+                  )}
                 </View>
+              ) : null}
+
+              <Text style={styles.noteSummary}>{note.summary || "No summary available."}</Text>
+
+              {isError ? (
+                <Text style={styles.noteError}>{note.error || "This file failed to analyze."}</Text>
+              ) : (
+                <>
+                  <Text numberOfLines={3} style={styles.transcriptPreview}>
+                    {note.transcript || "No transcript returned."}
+                  </Text>
+                  {!!quickMetrics && <Text style={styles.metricHint}>{quickMetrics}</Text>}
+                </>
               )}
-            </View>
-
-            <Text style={styles.noteSummary}>{note.summary || "No summary available."}</Text>
-
-            {isError ? (
-              <Text style={styles.noteError}>{note.error || "This file failed to analyze."}</Text>
-            ) : (
-              <Text numberOfLines={3} style={styles.transcriptPreview}>
-                {note.transcript || "No transcript returned."}
-              </Text>
-            )}
-          </Pressable>
+            </Pressable>
+          </AnimatedCard>
         );
       })}
     </ScrollView>
   );
+}
+
+function averageMetric(results: NoteResult[], key: "transcript_sentiment_score" | "acoustic_tone_score"): number | null {
+  const values = results
+    .map((note) => note[key])
+    .filter((value): value is number => typeof value === "number");
+
+  if (values.length === 0) {
+    return null;
+  }
+
+  return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
+}
+
+function buildQuickMetrics(note: NoteResult): string {
+  const features = note.audio_features;
+  if (!features) {
+    return "";
+  }
+
+  const parts: string[] = [];
+
+  if (typeof features.pitch_mean === "number") {
+    parts.push(`Pitch ${Math.round(features.pitch_mean)} Hz`);
+  }
+
+  if (typeof features.pause_ratio === "number") {
+    parts.push(`Pauses ${Math.round(features.pause_ratio * 100)}%`);
+  }
+
+  if (typeof features.speaking_rate_estimate === "number") {
+    parts.push(`Rate ${features.speaking_rate_estimate.toFixed(1)} w/s`);
+  }
+
+  return parts.join("  ");
 }
 
 const styles = StyleSheet.create({
@@ -178,14 +242,9 @@ const styles = StyleSheet.create({
   noteCard: {
     marginBottom: 12,
     padding: 18,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   noteCardError: {
     backgroundColor: colors.warningSoft,
-    borderColor: "#efc3b6",
   },
   noteHeader: {
     flexDirection: "row",
@@ -208,6 +267,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  metaPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  metaPillMuted: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  metaPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   noteSummary: {
     marginTop: 12,
     fontSize: 15,
@@ -218,6 +295,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 14,
     lineHeight: 21,
+    color: colors.textMuted,
+  },
+  metricHint: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.textMuted,
   },
   noteError: {

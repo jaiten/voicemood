@@ -1,4 +1,4 @@
-import { AnalysisResponse, PickedAudioFile } from "./types";
+import { AnalysisResponse, NoteResult, PickedAudioFile } from "./types";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -45,7 +45,7 @@ export async function analyzeVoiceNotes(
     } as any);
   });
 
-  onStatusChange?.("Backend is transcribing and scoring your notes...");
+  onStatusChange?.("Backend is transcribing, extracting vocal tone, and scoring your notes...");
 
   const response = await fetch(`${API_URL}/analyze`, {
     method: "POST",
@@ -66,4 +66,32 @@ export async function analyzeVoiceNotes(
   }
 
   return payload;
+}
+
+export async function analyzeTextNote(
+  params: { text: string; title?: string },
+  onStatusChange?: (status: string) => void,
+): Promise<NoteResult> {
+  onStatusChange?.("Analyzing your text note and generating a short summary...");
+
+  const response = await fetch(`${API_URL}/analyze-text`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(params),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(payload?.detail || "The backend could not analyze this text note.");
+  }
+
+  if (!payload || typeof payload !== "object" || typeof payload.filename !== "string") {
+    throw new Error("The app received an unexpected text-analysis response from the backend.");
+  }
+
+  return payload as NoteResult;
 }

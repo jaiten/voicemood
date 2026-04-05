@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 
 import { colors } from "../theme";
 import { PickedAudioFile } from "../types";
+import { formatFilename } from "../utils/display";
 
 type Props = {
   selectedFiles: PickedAudioFile[];
@@ -46,7 +47,7 @@ export function ImportScreen(props: Props) {
       <Text style={styles.eyebrow}>VoiceMood</Text>
       <Text style={styles.title}>Import voice notes and get a lightweight happiness snapshot.</Text>
       <Text style={styles.subtitle}>
-        This is a simple emotional summary based mainly on transcript sentiment. It is not medical advice.
+        This is a simple emotional summary that blends transcript wording with vocal tone. It is not medical advice.
       </Text>
 
       <Pressable onPress={pickFiles} style={styles.primaryButton}>
@@ -67,7 +68,7 @@ export function ImportScreen(props: Props) {
             keyExtractor={(item) => item.uri}
             renderItem={({ item }) => (
               <View style={styles.fileRow}>
-                <Text style={styles.fileName}>{item.name}</Text>
+                <Text style={styles.fileName}>{formatFilename(item.name)}</Text>
                 <Text style={styles.fileMeta}>{formatSize(item.size)}</Text>
               </View>
             )}
@@ -250,4 +251,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

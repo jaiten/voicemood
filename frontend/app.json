@@ -5,6 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow VoiceMood to record voice journal entries."
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.example.voicemood"
@@ -14,4 +22,3 @@
     }
   }
 }
-

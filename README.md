@@ -1,8 +1,19 @@
 # VoiceMood
 
-Simple hobby MVP for importing Apple Voice Memos, uploading them to a FastAPI backend, transcribing them with `faster-whisper`, and showing a lightweight happiness score in an Expo app.
+VoiceMood is now a calm, voice-first journaling app built with Expo + TypeScript on the frontend and FastAPI + Python on the backend.
 
-## Folder structure
+It supports:
+
+- importing existing voice memos
+- recording new voice notes in the app
+- writing text notes in the app
+- transcribing audio with `faster-whisper`
+- analyzing transcript sentiment and acoustic tone locally
+- generating short topic-style summaries
+- saving entries locally with SQLite
+- browsing entries in `History` and `Timeline`
+
+## Project structure
 
 ```text
 voicemood/
@@ -16,128 +27,296 @@ voicemood/
     package.json
 ```
 
-## Backend setup
+## How it works
 
-1. Create a virtual environment:
+### Audio entries
 
-   ```powershell
-   cd voicemood\backend
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
+For imported or recorded audio:
 
-2. Install dependencies:
+1. The Expo app uploads the audio file to `POST /analyze`.
+2. The FastAPI backend saves the upload temporarily.
+3. `faster-whisper` transcribes the file locally.
+4. Transcript sentiment is scored with:
+   - VADER
+   - keyword adjustment
+5. Acoustic analysis extracts local audio features such as:
+   - pitch mean / median / variation
+   - RMS energy and variability
+   - intensity
+   - pause ratio
+   - voiced ratio
+   - speaking rate estimate
+   - spectral centroid
+   - zero-crossing rate
+6. A simple tone heuristic labels the voice as:
+   - `Calm`
+   - `Animated`
+   - `Flat`
+   - `Tense`
+   - `Subdued`
+7. The backend combines scores using:
+   - `55%` transcript sentiment
+   - `35%` acoustic tone
+   - `10%` keyword balance
+8. The backend generates a short summary:
+   - via OpenRouter if `OPENROUTER_API_KEY` is configured
+   - otherwise via a local fallback
+9. The frontend saves the finished journal entry locally in SQLite.
 
-   ```powershell
-   pip install -r requirements.txt
-   ```
+### Text entries
 
-3. Copy the example env file:
+For written notes:
 
-   ```powershell
-   Copy-Item .env.example .env
-   ```
+1. The Expo app sends the note body to `POST /analyze-text`.
+2. The backend analyzes the text sentiment locally.
+3. OpenRouter or the local fallback generates a short caption-like summary.
+4. The app saves the result as a first-class journal entry.
 
-4. Start the API:
+## Journal model
 
-   ```powershell
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
+VoiceMood now stores a unified local journal entry model instead of only imported memo analyses.
 
-5. Check health:
+Each entry can be:
 
-   ```powershell
-   curl http://127.0.0.1:8000/health
-   ```
+- `imported_audio`
+- `recorded_audio`
+- `text`
+
+Important date behavior:
+
+- the app keeps `sourceCreatedAt` or `sourceModifiedAt` when available from imported files
+- `createdAt` is chosen from:
+  1. source created date
+  2. else source modified date
+  3. else import/save time
+- `History` and `Timeline` use that canonical `createdAt`
+
+This means imported memos are grouped by their original memo date when that metadata is available.
+
+## App screens
+
+### Capture
+
+The main capture area now has 3 modes:
+
+- `Import`
+- `Record`
+- `Write`
+
+Use it to:
+
+- import one or many `.m4a`, `.mp3`, or `.wav` files
+- record a new voice note in-app
+- write and analyze a text note
+
+### Results
+
+Batch import results show:
+
+- average happiness
+- overall label
+- transcript average
+- tone average
+- per-note result cards
+
+### History
+
+History shows the latest saved journal entries in reverse chronological order:
+
+- grouped by day
+- mixed entry types together
+- entry type badge
+- summary or title
+- timestamp
+- score and tone badge
+
+### Timeline
+
+Timeline supports:
+
+- `Week` mode
+- `Month` mode
+
+It shows:
+
+- entry-weighted period averages
+- total entries
+- day color based on average happiness
+- selected day summary
+- selected week average
+- a tap-through list of entries for the selected day
+
+### Detail
+
+Entry detail shows:
+
+- summary
+- timeline date
+- overall happiness
+- text score
+- tone score when available
+- transcript or text body
+- raw audio features for audio entries
+
+## Run locally
+
+You need both the backend and the frontend running.
+
+### 1. Backend
+
+```powershell
+cd C:\Users\jaiten\Documents\Code\Voice\voicemood\backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Quick health check:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8000/health
+```
+
+### 2. Frontend
+
+Open a second terminal:
+
+```powershell
+cd C:\Users\jaiten\Documents\Code\Voice\voicemood\frontend
+npm install
+Copy-Item .env.example .env
+```
+
+Set `EXPO_PUBLIC_API_URL` in `frontend/.env`.
+
+Use your computer's LAN IP if you are testing on a real iPhone:
+
+```env
+EXPO_PUBLIC_API_URL=http://192.168.1.10:8000
+```
+
+Do not use `localhost` on the phone.
+
+Start Expo:
+
+```powershell
+npx expo start -c
+```
+
+## Environment variables
+
+### Backend
+
+`backend/.env` supports:
+
+```env
+APP_NAME=VoiceMood API
+APP_ENV=development
+BACKEND_CORS_ORIGINS=http://localhost:8081,http://127.0.0.1:8081
+WHISPER_MODEL_SIZE=base.en
+WHISPER_DEVICE=cpu
+WHISPER_COMPUTE_TYPE=int8
+WHISPER_LANGUAGE=en
+WHISPER_BEAM_SIZE=1
+WHISPER_VAD_FILTER=true
+ACOUSTIC_SAMPLE_RATE=16000
+MODEL_CACHE_DIR=.cache/models
+OPENROUTER_API_KEY=
+```
 
 Notes:
 
-- The first transcription request downloads the Whisper model automatically.
-- `tiny.en` is the default because it is much lighter for hobby hosting.
-- If you want better English transcripts later, try `WHISPER_MODEL_SIZE=base.en`.
+- `WHISPER_MODEL_SIZE=base.en` is the current default.
+- if your machine is slow, switch to `tiny.en`
+- if you want better local transcription later, try `small.en`
+- `OPENROUTER_API_KEY` is optional; the app falls back to a local summary if it is missing
 
-## Frontend setup
+### Frontend
 
-1. Install dependencies:
+`frontend/.env`:
 
-   ```powershell
-   cd ..\frontend
-   npm install
-   ```
-
-2. Create the frontend env file:
-
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-
-3. Set `EXPO_PUBLIC_API_URL` in `frontend/.env`.
-
-   Use your computer's LAN IP for a real iPhone on the same Wi-Fi, for example:
-
-   ```env
-   EXPO_PUBLIC_API_URL=http://192.168.1.10:8000
-   ```
-
-   Do not use `localhost` if the app is running on your phone.
-
-4. Start Expo:
-
-   ```powershell
-   npm run start
-   ```
-
-## How the MVP works
-
-- Import one or more `.m4a`, `.mp3`, or `.wav` files with `expo-document-picker`
-- Upload them as multipart form data to `POST /analyze`
-- Transcribe each note with `faster-whisper`
-- Score each transcript with:
-  - 80% VADER sentiment score
-  - 20% keyword-based adjustment
-- Return per-note results plus an average happiness score
-- Keep batch processing resilient so one failed file does not fail the whole request
-
-## API response shape
-
-```json
-{
-  "average_happiness": 72,
-  "overall_label": "High",
-  "count": 2,
-  "successful_count": 2,
-  "failed_count": 0,
-  "results": [
-    {
-      "filename": "memo1.m4a",
-      "status": "success",
-      "transcript": "Today was actually pretty good...",
-      "happiness_score": 78,
-      "label": "High",
-      "summary": "Mostly positive and reflective.",
-      "error": null
-    }
-  ]
-}
+```env
+EXPO_PUBLIC_API_URL=http://192.168.1.10:8000
 ```
+
+## Dependencies added for the journal app
+
+Frontend now uses:
+
+- `expo-document-picker`
+- `expo-audio`
+- `expo-file-system`
+- `expo-sqlite`
+- `react-native-reanimated`
+
+Backend uses:
+
+- `faster-whisper`
+- `vaderSentiment`
+- `numpy`
+- `librosa`
+- `requests`
+
+## Local persistence
+
+The frontend stores journal entries locally with `expo-sqlite`.
+
+This powers:
+
+- `History`
+- `Timeline`
+- day, week, and month aggregations
+
+There is no cloud sync yet.
+
+## Backend logs
+
+The backend logs each major step:
+
+- request started/completed
+- batch started/completed
+- file persisted
+- transcription started/completed
+- sentiment started/completed
+- acoustic analysis started/completed
+- summary started/completed
+- OpenRouter request started/succeeded/failed
+
+## Common issues
+
+### `network timed out`
+
+Usually means the frontend cannot reach the backend.
+
+Check:
+
+- the backend is running on port `8000`
+- `frontend/.env` points to the correct IP and port
+- the phone and computer are on the same Wi-Fi
+- Windows Firewall is not blocking the backend
+
+### OpenRouter summary says skipped
+
+That means `OPENROUTER_API_KEY` is missing in `backend/.env`, or the backend was not restarted after adding it.
+
+### Recording permission problems
+
+If recording does not start:
+
+- make sure microphone permission was granted on the phone
+- restart Expo after dependency changes
+- if you later make a development build, keep the `expo-audio` plugin config in `frontend/app.json`
+
+### First request is slow
+
+The first transcription request may download the Whisper model, which can take a while.
 
 ## Cheap/free deployment notes
 
-- Keep the frontend local in Expo during development and deploy only the backend first.
-- The simplest hobby path is a small Docker-based FastAPI deploy.
-- A ready-to-edit `render.yaml` is included for a free Render web service.
-- Use `tiny.en` on free tiers because larger Whisper models are slower and heavier.
-- If your host has an ephemeral filesystem, the model cache can disappear between restarts and the first request after a restart will be slow.
-- If you outgrow free tiers, the next step is a very small paid instance with persistent disk or always-on storage.
-
-### Render quick start
-
-1. Push `voicemood/` to GitHub.
-2. In Render, create a new Blueprint or Web Service.
-3. Point it at this repo and keep the included `render.yaml`, or use:
-
-   - Root directory: `voicemood`
-   - Dockerfile path: `backend/Dockerfile`
-
-4. Keep the default `tiny.en` settings for the first deploy.
-5. After deploy, copy the public backend URL into `frontend/.env` as `EXPO_PUBLIC_API_URL`.
+- Keep the frontend local in Expo during development.
+- Deploy the backend first if you want remote testing.
+- A simple Docker-based FastAPI deploy is the easiest hobby path.
+- A `render.yaml` file is included for a small Render deploy.
+- If a free host is too slow for `base.en`, switch the host to `tiny.en`.
