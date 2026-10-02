@@ -205,6 +205,16 @@ Start Expo:
 npx expo start -c
 ```
 
+## Verify the local setup
+
+After starting both services, confirm the backend is reachable before debugging the mobile app:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8000/health
+```
+
+Then verify the frontend configuration points to an address the test device can reach. A physical phone must use the computer's LAN IP rather than `localhost`. If the health check succeeds on the computer but the app cannot connect, check that both devices are on the same network and that port `8000` is allowed through the firewall.
+
 ## Environment variables
 
 ### Backend
